@@ -35,6 +35,7 @@ class Match:
         self.score = ""
         self.tourney = "";
         self.Round = 0;
+        self.date = "";
 
     def __eq__(self, other):
         return self.__dict__ == other.__dict__;
@@ -54,6 +55,9 @@ class Match:
     def setScore(self, score):
         self.score = score;
 
+    def setDate(self, date):
+        self.date = date;
+
     def showInfo(self):
         print (self.tourney + " Round"),
         print (self.Round),
@@ -63,6 +67,7 @@ def main():
 
     
     listPlayers = [];
+    listMatches =[];
     ranking = [];
     user = raw_input("Enter your challonge username: ");
     user = "uiblis";
@@ -72,28 +77,29 @@ def main():
     challonge.set_credentials(user, api_key)
 
     print("Welcome to BetterPR!")
-    print("")
         
     while True:
-        print("Choose an option: ")
-        print("1) Input a tournament URL ")
-        print("2) Add a match ")
-        print("3) View players ")
-        print("4) Exit ")
-
+        print("");
+        print("Choose an option: ");
+        print("1) Input a tournament URL ");
+        print("2) Add a match ");
+        print("3) View players ");
+        print("4) Exit ");
+        
         while True:
             choice = raw_input();
             if (choice == "1"):
                 url = getURL();
                 tournament = loadURL(url);
-                print ""
+                print "";
                 print "Tournament: " + tournament["name"];
                 print "Date:",
                 print tournament["started-at"];
         
-                decision = raw_input("Compile data from this tournament? (y/n) ");
+                
         
                 while True:
+                    decision = raw_input("Compile data from this tournament? (y/n) ");
                     if (decision == "n"):
                         break;
             
@@ -101,11 +107,10 @@ def main():
                         tourneyPlayers = [];
                         tourneyMatches = [];
                         compileParticipants(url, tourneyPlayers, listPlayers);
-                        compileMatches(url, tourneyMatches, tourneyPlayers, tournament, listPlayers);
-                        for match in tourneyMatches:
-                            match.showInfo();
-                            listPlayers.sort(key = lambda x: x.rating.mu, reverse = True)
-                            index = 1;
+                        compileMatches(url, tourneyMatches, tourneyPlayers, tournament, listPlayers, listMatches);
+
+                        listPlayers.sort(key = lambda x: x.rating.mu, reverse = True)
+                        index = 1;
                         for player in listPlayers:
                             player.rank = index;
                             index +=1;
@@ -116,6 +121,19 @@ def main():
                         print ("Please enter 'y' or 'n'. ");
                 break;
 
+            if (choice == "2"):
+                print listPlayers[0].matches[0].showInfo();
+                break;
+
+            if (choice == "3"):
+                break;
+
+            if (choice == "4"):
+                exit();
+
+            else:
+                print "Please choose a valid option."
+                    
 def getURL():
     while True:
         url = raw_input("Enter a challonge url (eg. challonge.com/ladulite1): ");
@@ -155,29 +173,27 @@ def compileParticipants(url, tourneyPlayers, listPlayers):
     for participant in participants:
         flag = 0;
         tourneyPlayers.append((participant["id"], participant["name"]));
-        for player in listPlayers:
-            if player.name == participant["name"]:
-                flag == 1;
+        for person in listPlayers:
+            if participant["name"] == person.name:
+                flag = 1;
                 break;
-        if (flag == 0):
-            listPlayers.append(Player(participant["name"]));
+        if (flag == 1):
+            continue;
         else:
-            break;
+            print "adding new player";
+            listPlayers.append(Player(participant["name"]));
                 
     print "all players added";
 
-def compileMatches(url, tourneyMatches, tourneyPlayers, tournament, listPlayers):
+def compileMatches(url, tourneyMatches, tourneyPlayers, tournament, listPlayers, listMatches):
     matches = challonge.matches.index(url);
     counter = 0;
     for match in matches:
-        for person in listPlayers:
-            if match in person.matches:
-                print ("Match already in database, skipping:");
-                break;
+        if match in listMatches:
+            print ("Match already in database, skipping: ");
+            continue;
                  
         tourneyMatches.append(Match());
-        print "Counter: ",
-        print counter;
         tourneyMatches[counter].setTourney(tournament["name"]);
         for player in tourneyPlayers:
             if match["winner-id"] == player[0]:
@@ -194,6 +210,7 @@ def compileMatches(url, tourneyMatches, tourneyPlayers, tournament, listPlayers)
         
         tourneyMatches[counter].setScore(match["scores-csv"]);
         tourneyMatches[counter].setRound(match["round"]);
+        tourneyMatches[counter].setDate(match["updated-at"])
 
         #update players
         new_r1, new_r2 = rate_1vs1(winner.rating, loser.rating)
@@ -201,8 +218,9 @@ def compileMatches(url, tourneyMatches, tourneyPlayers, tournament, listPlayers)
         loser.updateRating(new_r2);
         winner.wins = winner.wins + 1;
         loser.losses = loser.losses + 1;
-        winner.matches.append(match);
-        loser.matches.append(match);
+        winner.matches.append(tourneyMatches[counter]); #change these eventually
+        loser.matches.append(tourneyMatches[counter]);
+        listMatches.append(match);
         counter = counter + 1;
          
 if __name__ == "__main__":
