@@ -3,6 +3,7 @@ import requests
 import challonge
 import json
 from trueskill import Rating, quality_1vs1, rate_1vs1
+import cPickle as pickle
 
 class Player:
     def __init__(self, name):
@@ -26,7 +27,7 @@ class Player:
         print ("Rating:"),
         print self.rating,
         print ("Rank: %d" %(self.rank));
-        
+
 
 class Match:
     def __init__(self):
@@ -48,7 +49,7 @@ class Match:
 
     def setWinner(self, winner):
         self.winner = winner;
-        
+
     def setLoser(self, loser):
         self.loser = loser;
 
@@ -62,12 +63,10 @@ class Match:
         print (self.tourney + " Round"),
         print (self.Round),
         print (": " + self.winner + " " + self.score + " " + self.loser);
-        
-def main():
 
-    
-    listPlayers = [];
-    listMatches =[];
+def main():
+    listPlayers = pickle.load(open("info/players.pickle", "rb"));
+    listMatches = pickle.load(open("info/matches.pickle", "rb"));
     ranking = [];
     user = raw_input("Enter your challonge username: ");
     user = "uiblis";
@@ -77,7 +76,7 @@ def main():
     challonge.set_credentials(user, api_key)
 
     print("Welcome to BetterPR!")
-        
+
     while True:
         print("");
         print("Choose an option: ");
@@ -85,7 +84,7 @@ def main():
         print("2) Add a match ");
         print("3) View players ");
         print("4) Exit ");
-        
+
         while True:
             choice = raw_input();
             if (choice == "1"):
@@ -95,14 +94,12 @@ def main():
                 print "Tournament: " + tournament["name"];
                 print "Date:",
                 print tournament["started-at"];
-        
-                
-        
+
                 while True:
                     decision = raw_input("Compile data from this tournament? (y/n) ");
                     if (decision == "n"):
                         break;
-            
+
                     elif (decision == "y"):
                         tourneyPlayers = [];
                         tourneyMatches = [];
@@ -110,37 +107,38 @@ def main():
                         compileMatches(url, tourneyMatches, tourneyPlayers, tournament, listPlayers, listMatches);
 
                         listPlayers.sort(key = lambda x: x.rating.mu, reverse = True)
-                        index = 1;
-                        for player in listPlayers:
-                            player.rank = index;
-                            index +=1;
-                            player.showInfo();
                         break;
-                        
+
                     else:
                         print ("Please enter 'y' or 'n'. ");
                 break;
 
             if (choice == "2"):
-                print listPlayers[0].matches[0].showInfo();
                 break;
 
             if (choice == "3"):
+                index = 1;
+                for player in listPlayers:
+                    player.rank = index;
+                    index += 1;
+                    player.showInfo();
                 break;
 
             if (choice == "4"):
+                pickle.dump(listPlayers, open("info/players.pickle", "wb"))
+                pickle.dump(listMatches, open("info/matches.pickle", "wb"))
                 exit();
 
             else:
                 print "Please choose a valid option."
-                    
+
 def getURL():
     while True:
         url = raw_input("Enter a challonge url (eg. challonge.com/ladulite1): ");
         if (url[:4] == "www."):
             url = url[4:];
-            
-        
+
+
         if (url[:13] != "challonge.com"):
             try:
                 x, y, z = url.split(".");
@@ -149,7 +147,7 @@ def getURL():
                 return url;
             except ValueError:
                 print ("Invalid url.");
-                
+
         else:
             try:
                 a, b = url.split("/")
@@ -160,14 +158,14 @@ def getURL():
 
 def loadURL(url):
     while True:
-        
+
         try:
             tournament = challonge.tournaments.show(url);
             return tournament;
         except (urllib2.HTTPError, urllib2.URLError):
             print "Invalid url."
             url = getURL();
-    
+
 def compileParticipants(url, tourneyPlayers, listPlayers):
     participants = challonge.participants.index(url);
     for participant in participants:
@@ -182,17 +180,14 @@ def compileParticipants(url, tourneyPlayers, listPlayers):
         else:
             print "adding new player";
             listPlayers.append(Player(participant["name"]));
-                
+
     print "all players added";
 
 def compileMatches(url, tourneyMatches, tourneyPlayers, tournament, listPlayers, listMatches):
     matches = challonge.matches.index(url);
     counter = 0;
     for match in matches:
-        if match in listMatches:
-            print ("Match already in database, skipping: ");
-            continue;
-                 
+
         tourneyMatches.append(Match());
         tourneyMatches[counter].setTourney(tournament["name"]);
         for player in tourneyPlayers:
@@ -201,29 +196,33 @@ def compileMatches(url, tourneyMatches, tourneyPlayers, tournament, listPlayers,
                 for person in listPlayers:
                     if person.name == player[1]:
                         winner = person;
-                        print "winner defined"
             if match["loser-id"] == player[0]:
                 tourneyMatches[counter].setLoser(player[1]);
                 for person in listPlayers:
                     if person.name == player[1]:
                         loser = person;
-        
+
         tourneyMatches[counter].setScore(match["scores-csv"]);
         tourneyMatches[counter].setRound(match["round"]);
         tourneyMatches[counter].setDate(match["updated-at"])
 
-        #update players
-        new_r1, new_r2 = rate_1vs1(winner.rating, loser.rating)
-        winner.updateRating(new_r1);
-        loser.updateRating(new_r2);
-        winner.wins = winner.wins + 1;
-        loser.losses = loser.losses + 1;
-        winner.matches.append(tourneyMatches[counter]); #change these eventually
-        loser.matches.append(tourneyMatches[counter]);
-        listMatches.append(match);
+        if tourneyMatches[counter] in listMatches:
+            print ("Match already in database, skipping: ");
+            continue;
+
+        else:
+            listMatches.append(tourneyMatches[counter]);
+            new_r1, new_r2 = rate_1vs1(winner.rating, loser.rating)
+            winner.updateRating(new_r1);
+            loser.updateRating(new_r2);
+            winner.wins = winner.wins + 1;
+            loser.losses = loser.losses + 1;
+            winner.matches.append(tourneyMatches[counter]); #change these eventually
+            loser.matches.append(tourneyMatches[counter]);
+
         counter = counter + 1;
-         
+
 if __name__ == "__main__":
     main();
 
-    
+
